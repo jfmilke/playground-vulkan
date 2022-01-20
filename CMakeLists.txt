@@ -36,20 +36,20 @@ File(GLOB SOURCE_LIST
 find_package(Vulkan REQUIRED FATAL_ERROR)
 List(APPEND PROJECT_LIBRARIES Vulkan::Vulkan)
 
-if (EXISTS ${PROJECT_SOURCE_DIR}/libraries/glm)
-  Add_Subdirectory(libraries/glm)
+if (EXISTS ${PROJECT_SOURCE_DIR}/extern/glm)
+  Add_Subdirectory(extern/glm)
   List(APPEND PROJECT_LIBRARIES glm::glm)
 else()
   find_package(glm REQUIRED)
   List(APPEND PROJECT_LIBRARIES glm::glm)
 endif()
 
-if (EXISTS ${PROJECT_SOURCE_DIR}/libraries/glfw)
+if (EXISTS ${PROJECT_SOURCE_DIR}/extern/glfw)
   option(GLFW_BUILD_EXAMPLES "" OFF)
   option(GLFW_BUILD_TESTS "" OFF)
   option(GLFW_BUILD_DOCS "" OFF)
   option(GLFW_INSTALL "" OFF)
-  Add_Subdirectory(libraries/glfw)
+  Add_Subdirectory(extern/glfw)
   List(APPEND PROJECT_LIBRARIES glfw)
 else()
   find_package(glfw REQUIRED)
@@ -57,7 +57,7 @@ else()
 endif()
 
 add_library(stb_image INTERFACE)
-target_include_directories(stb_image INTERFACE libraries/stb_image)
+target_include_directories(stb_image INTERFACE extern/stb_image)
 List(APPEND PROJECT_LIBRARIES stb_image)
 
 # ADD LIBRARIES HERE.
