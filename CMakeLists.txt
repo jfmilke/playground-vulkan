@@ -15,6 +15,14 @@ Set_Property(GLOBAL PROPERTY USE_FOLDERS ON)
 Include(set_max_warning_level)
 set_max_warning_level ()
 
+# Set bin dir
+set(BIN_DIR ${CMAKE_SOURCE_DIR}/bin/${CMAKE_BUILD_TYPE})
+
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${BIN_DIR})
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE ${BIN_DIR})
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG ${BIN_DIR})
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO ${BIN_DIR})
+
 ##################################################    Options     ##################################################
 # option(VARIABLE "Descriptor" OFF)
 
@@ -57,6 +65,7 @@ else()
 endif()
 
 add_library(stb_image INTERFACE)
+target_sources(stb_image INTERFACE extern/stb_image/stb_image.h)
 target_include_directories(stb_image INTERFACE extern/stb_image)
 List(APPEND PROJECT_LIBRARIES stb_image)
 

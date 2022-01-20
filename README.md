@@ -9,5 +9,6 @@ Following vulkan-tutorial.com.
     - Untested for Linux, check [this](https://vulkan-tutorial.com/Development_environment)
 
 ## Dependencies
-- glm
-- glfw3
+- glm *(submodule available)*
+- glfw3 *(submodule available)*
+- stb_image *(included)*

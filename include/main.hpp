@@ -99,6 +99,8 @@ private:
   VkShaderModule createShaderModule(const std::vector<char>& code);
   void createFramebuffers();
   void createCommandPools();
+  void createTextureImage();
+  void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory);
   void createCommandBuffers();
   void createIndexBuffer();
   void createVertexBuffer();
@@ -125,7 +127,11 @@ private:
   // sets resolution of swap chain images (in pixels)
   VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
 
+  VkCommandBuffer beginSingleTimeCommands();
+  void endSingleTimeCommands(VkCommandBuffer commandBuffer);
+  void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
   void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
+  void copyBufferToImage(VkBuffer srcBuffer, VkImage dstImage, uint32_t width, uint32_t height);
 
 private:
   bool checkValidationLayerSupport();
@@ -136,6 +142,7 @@ private:
   QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
   SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device);
   uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
+
 
 private:
   GLFWwindow* window;
@@ -169,6 +176,9 @@ private:
 
   std::vector<Vertex> vertexData;
   std::vector<uint16_t> indices;
+
+  VkImage textureImage;
+  VkDeviceMemory textureImageMemory;
 
   VkBuffer vertexBuffer;
   VkDeviceMemory vertexBufferMemory;

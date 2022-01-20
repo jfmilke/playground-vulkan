@@ -35,4 +35,6 @@
 *.spv
 
 # Folders
+bin
 build
+build_vs
