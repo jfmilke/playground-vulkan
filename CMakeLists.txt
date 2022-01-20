@@ -34,18 +34,31 @@ File(GLOB SOURCE_LIST
 # External Dependencies
 # Vulkan
 find_package(Vulkan REQUIRED FATAL_ERROR)
-List(APPEND PROJECT_INCLUDES ${Vulkan_INCLUDE_DIR})
-List(APPEND PROJECT_LIBRARIES ${Vulkan_LIBRARIES})
+List(APPEND PROJECT_LIBRARIES Vulkan::Vulkan)
 
-# Submodule Dependencies:
-## GLM
-Add_Subdirectory(libraries/glm)
-List(APPEND PROJECT_LIBRARIES glm)
+if (EXISTS ${PROJECT_SOURCE_DIR}/libraries/glm)
+  Add_Subdirectory(libraries/glm)
+  List(APPEND PROJECT_LIBRARIES glm::glm)
+else()
+  find_package(glm REQUIRED)
+  List(APPEND PROJECT_LIBRARIES glm::glm)
+endif()
 
-## GLFW
-Add_Subdirectory(libraries/glfw)
-List(APPEND PROJECT_INCLUDES libraries/glfw/include)
-List(APPEND PROJECT_LIBRARIES glfw ${GLFW_LIBRARIES})
+if (EXISTS ${PROJECT_SOURCE_DIR}/libraries/glfw)
+  option(GLFW_BUILD_EXAMPLES "" OFF)
+  option(GLFW_BUILD_TESTS "" OFF)
+  option(GLFW_BUILD_DOCS "" OFF)
+  option(GLFW_INSTALL "" OFF)
+  Add_Subdirectory(libraries/glfw)
+  List(APPEND PROJECT_LIBRARIES glfw)
+else()
+  find_package(glfw REQUIRED)
+  List(APPEND PROJECT_LIBRARIES glfw)
+endif()
+
+add_library(stb_image INTERFACE)
+target_include_directories(stb_image INTERFACE libraries/stb_image)
+List(APPEND PROJECT_LIBRARIES stb_image)
 
 # ADD LIBRARIES HERE.
 # Examples:
@@ -59,8 +72,6 @@ List(APPEND PROJECT_LIBRARIES glfw ${GLFW_LIBRARIES})
 #   find_package  (Boost REQUIRED iostreams)
 #   import_library(Boost_INCLUDE_DIRS Boost_IOSTREAMS_LIBRARY_DEBUG Boost_IOSTREAMS_LIBRARY_RELEASE)
 # - You may also set the PROJECT_INCLUDE_DIRS and PROJECT_LIBRARIES instead of using import_library.
-
-Include_Directories(${PROJECT_INCLUDES})
 ##################################################    Targets     ##################################################
 
 Add_Executable(VulkanPlayground ${SOURCE_LIST})

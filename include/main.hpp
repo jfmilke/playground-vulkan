@@ -3,6 +3,7 @@
 #include <vulkan/vulkan.hpp>
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
+#include <glm/mat4x4.hpp>
 
 #include <optional>
 #include <array>
@@ -74,6 +75,12 @@ struct Vertex {
   }
 };
 
+struct UniformBufferObject {
+  alignas(16) glm::mat4 model;
+  alignas(16) glm::mat4 view;
+  alignas(16) glm::mat4 proj;
+};
+
 class HelloTriangleApp {
 public:
   void run();
@@ -88,17 +95,22 @@ private:
   void createImageViews();
   void createRenderPass();
   void createGraphicsPipeline();
+  void createDescriptorSetLayout();
   VkShaderModule createShaderModule(const std::vector<char>& code);
   void createFramebuffers();
   void createCommandPools();
   void createCommandBuffers();
   void createIndexBuffer();
   void createVertexBuffer();
+  void createUniformBuffers();
+  void createDescriptorPool();
+  void createDescriptorSets();
   void createBuffer(VkDeviceSize deviceSize, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
   void createSyncObjects();
   void createVertexData();
   void recreateSwapChain();
   void setupDebugMessenger();
+  void updateUniformBuffer(uint32_t currentImage);
   void mainLoop();
   void cleanupSwapChain();
   void cleanUp();
@@ -125,50 +137,67 @@ private:
   SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device);
   uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
 
-public:
-  bool framebufferResized = false;
-
 private:
   GLFWwindow* window;
 
 private:
   VkInstance instance;
   VkDebugUtilsMessengerEXT debugMessenger;
+  VkSurfaceKHR surface;
+
   VkPhysicalDevice physicalDevice = VK_NULL_HANDLE; // is destroyed with VkInstance
   VkDevice device;
+
   VkQueue graphicsQueue; // is destroyed with VkDevice
   VkQueue presentQueue;
   VkQueue transferQueue;
-  VkSurfaceKHR surface;
+
   VkSwapchainKHR swapChain;
   std::vector<VkImage> swapChainImages; // are destroyed automatically with swapchain
   VkFormat swapChainImageFormat;
   VkExtent2D swapChainExtent;
   std::vector<VkImageView> swapChainImageViews;
+  std::vector<VkFramebuffer> swapChainFramebuffers;
+
   VkRenderPass renderPass;
+  VkDescriptorSetLayout descriptorSetLayout;
   VkPipelineLayout pipelineLayout;
   VkPipeline graphicsPipeline;
-  std::vector<VkFramebuffer> swapChainFramebuffers;
+
   VkCommandPool graphicsCommandPool;
   VkCommandPool transferCommandPool;
-  std::vector<VkCommandBuffer> commandBuffers;
-  std::vector<VkSemaphore> imageAvailableSemaphore;
-  std::vector<VkSemaphore> renderFinishedSemaphore;
-  std::vector<VkFence> inFlightFences;
-  std::vector<VkFence> imagesInFlight;
-  size_t currentFrame = 0;
+
+  std::vector<Vertex> vertexData;
+  std::vector<uint16_t> indices;
+
   VkBuffer vertexBuffer;
   VkDeviceMemory vertexBufferMemory;
   VkBuffer indexBuffer;
   VkDeviceMemory indexBufferMemory;
 
-  std::vector<Vertex> vertexData;
-  std::vector<uint16_t> indices;
+  std::vector<VkBuffer> uniformBuffers;
+  std::vector<VkDeviceMemory> uniformBuffersMemory;
+
+  VkDescriptorPool descriptorPool;
+  std::vector<VkDescriptorSet> descriptorSets;
+
+  std::vector<VkCommandBuffer> commandBuffers;
+
+  std::vector<VkSemaphore> imageAvailableSemaphores;
+  std::vector<VkSemaphore> renderFinishedSemaphores;
+  std::vector<VkFence> inFlightFences;
+  std::vector<VkFence> imagesInFlight;
+  size_t currentFrame = 0;
+
+  bool framebufferResized = false;
 
 private:
   const std::vector<const char*> deviceExtensions = {
     VK_KHR_SWAPCHAIN_EXTENSION_NAME
   };
+
+private:
+  static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
 };
 
 

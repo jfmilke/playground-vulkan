@@ -1,6 +1,7 @@
 #include "main.hpp"
 
 #include <GLFW/glfw3.h>
+#include <glm/gtc/matrix_transform.hpp>
 
 #include <iostream>
 #include <stdexcept>
@@ -9,6 +10,8 @@
 #include <set>
 #include <algorithm> // Necessary for std::clamp
 #include <fstream>
+#include <chrono>
+#include <stb_image.h>
 
 // helper
 static std::vector<char> readFile(const std::string& filename) {
@@ -43,7 +46,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
 }
 
 // framebuffer resize callback
-static void framebufferResizeCallback(GLFWwindow* window, int width, int height) {
+void HelloTriangleApp::framebufferResizeCallback(GLFWwindow* window, int width, int height) {
   auto app = reinterpret_cast<HelloTriangleApp*>(glfwGetWindowUserPointer(window));
   app->framebufferResized = true;
 }
@@ -118,11 +121,15 @@ void HelloTriangleApp::initVulkan() {
   createSwapChain();
   createImageViews();
   createRenderPass();
+  createDescriptorSetLayout();
   createGraphicsPipeline();
   createFramebuffers();
   createCommandPools();
   createVertexBuffer();
   createIndexBuffer();
+  createUniformBuffers();
+  createDescriptorPool();
+  createDescriptorSets();
   createCommandBuffers();
   createSyncObjects();
 }
@@ -143,6 +150,8 @@ void HelloTriangleApp::cleanUp() {
 
   cleanupSwapChain();
 
+  vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+
   vkDestroyBuffer(device, vertexBuffer, nullptr);
   vkFreeMemory(device, vertexBufferMemory, nullptr);
 
@@ -156,8 +165,8 @@ void HelloTriangleApp::cleanUp() {
   vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
 
   for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-    vkDestroySemaphore(device, renderFinishedSemaphore[i], nullptr);
-    vkDestroySemaphore(device, imageAvailableSemaphore[i], nullptr);
+    vkDestroySemaphore(device, renderFinishedSemaphores[i], nullptr);
+    vkDestroySemaphore(device, imageAvailableSemaphores[i], nullptr);
     vkDestroyFence(device, inFlightFences[i], nullptr);
   }
   
@@ -424,6 +433,24 @@ void HelloTriangleApp::createRenderPass() {
   }
 }
 
+void HelloTriangleApp::createDescriptorSetLayout() {
+  VkDescriptorSetLayoutBinding uboLayoutBinding{};
+  uboLayoutBinding.binding = 0;
+  uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+  uboLayoutBinding.descriptorCount = 1;
+  uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+  uboLayoutBinding.pImmutableSamplers = nullptr;
+
+  VkDescriptorSetLayoutCreateInfo layoutInfo{};
+  layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+  layoutInfo.bindingCount = 1;
+  layoutInfo.pBindings = &uboLayoutBinding;
+
+  if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
+    throw std::runtime_error("Failed to create descriptor set layout!");
+  }
+}
+
 void HelloTriangleApp::createGraphicsPipeline() {
   // read SPIR-V shaders
   auto vertShaderCode = readFile("shaders/vert.spv");
@@ -499,7 +526,7 @@ void HelloTriangleApp::createGraphicsPipeline() {
   rasterizerInfo.polygonMode = VK_POLYGON_MODE_FILL;
   rasterizerInfo.lineWidth = 1.0f;
   rasterizerInfo.cullMode = VK_CULL_MODE_BACK_BIT;
-  rasterizerInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
+  rasterizerInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
   rasterizerInfo.depthBiasEnable = VK_FALSE;
   rasterizerInfo.depthBiasConstantFactor = 0.0f;
   rasterizerInfo.depthBiasClamp = 0.0f;
@@ -561,8 +588,8 @@ void HelloTriangleApp::createGraphicsPipeline() {
   // specify used uniforms (even if there arent any)
   VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
   pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-  pipelineLayoutInfo.setLayoutCount = 0;
-  pipelineLayoutInfo.pSetLayouts = nullptr;
+  pipelineLayoutInfo.setLayoutCount = 1;
+  pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
   pipelineLayoutInfo.pushConstantRangeCount = 0;
   pipelineLayoutInfo.pPushConstantRanges = nullptr;
 
@@ -705,6 +732,15 @@ void HelloTriangleApp::createCommandBuffers() {
     scissor.extent = swapChainExtent;
     vkCmdSetScissor(commandBuffers[i], 0, 1, &scissor);
 
+    vkCmdBindDescriptorSets(commandBuffers[i]
+      , VK_PIPELINE_BIND_POINT_GRAPHICS
+      , pipelineLayout
+      , 0
+      , 1
+      , &descriptorSets[i]
+      , 0
+      , nullptr);
+
     vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
     
     // finish up
@@ -718,8 +754,8 @@ void HelloTriangleApp::createCommandBuffers() {
 
 void HelloTriangleApp::createSyncObjects() {
   // semaphores & fences
-  imageAvailableSemaphore.resize(MAX_FRAMES_IN_FLIGHT);
-  renderFinishedSemaphore.resize(MAX_FRAMES_IN_FLIGHT);
+  imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+  renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
   inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
   imagesInFlight.resize(swapChainImages.size(), VK_NULL_HANDLE);
 
@@ -731,8 +767,8 @@ void HelloTriangleApp::createSyncObjects() {
   fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
   
   for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-    if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailableSemaphore[i]) != VK_SUCCESS
-      || vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinishedSemaphore[i]) != VK_SUCCESS
+    if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS
+      || vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS
       || vkCreateFence(device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS) {
       throw std::runtime_error("Failed to create synchronization objects for a frame!");
     }
@@ -846,6 +882,71 @@ void HelloTriangleApp::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage,
   vkBindBufferMemory(device, buffer, bufferMemory, 0);
 }
 
+void HelloTriangleApp::createUniformBuffers() {
+  VkDeviceSize bufferSize = sizeof(UniformBufferObject);
+
+  uniformBuffers.resize(swapChainImages.size());
+  uniformBuffersMemory.resize(swapChainImages.size());
+
+  for (size_t i = 0; i < swapChainImages.size(); i++) {
+    createBuffer(bufferSize
+      , VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT
+      , VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
+      | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+      , uniformBuffers[i]
+      , uniformBuffersMemory[i]);
+  }
+}
+
+void HelloTriangleApp::createDescriptorPool() {
+  VkDescriptorPoolSize poolSize{};
+  poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+  poolSize.descriptorCount = static_cast<uint32_t>(swapChainImages.size());
+
+  VkDescriptorPoolCreateInfo poolInfo{};
+  poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+  poolInfo.poolSizeCount = 1;
+  poolInfo.pPoolSizes = &poolSize;
+  poolInfo.maxSets = static_cast<uint32_t>(swapChainImages.size());
+
+  if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
+    throw std::runtime_error("Failed to create descritor pool!");
+  }
+}
+
+void HelloTriangleApp::createDescriptorSets() {
+  std::vector<VkDescriptorSetLayout> layouts(swapChainImages.size(), descriptorSetLayout);
+  VkDescriptorSetAllocateInfo allocInfo{};
+  allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+  allocInfo.descriptorPool = descriptorPool;
+  allocInfo.descriptorSetCount = static_cast<uint32_t>(swapChainImages.size());
+  allocInfo.pSetLayouts = layouts.data();
+
+  descriptorSets.resize(swapChainImages.size());
+  if (vkAllocateDescriptorSets(device, &allocInfo, descriptorSets.data()) != VK_SUCCESS) {
+    throw std::runtime_error("Failed  to allocate descriptor sets!");
+  }
+
+  for (size_t i = 0; i < swapChainImages.size(); i++) {
+    VkDescriptorBufferInfo bufferInfo{};
+    bufferInfo.buffer = uniformBuffers[i];
+    bufferInfo.offset = 0;
+    bufferInfo.range = sizeof(UniformBufferObject);
+    VkWriteDescriptorSet descriptorWrite{};
+    descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrite.dstSet = descriptorSets[i];
+    descriptorWrite.dstBinding = 0;
+    descriptorWrite.dstArrayElement = 0;
+    descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    descriptorWrite.descriptorCount = 1;
+    descriptorWrite.pBufferInfo = &bufferInfo;
+    descriptorWrite.pImageInfo = nullptr;
+    descriptorWrite.pTexelBufferView = nullptr;
+
+    vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
+  }
+}
+
 uint32_t HelloTriangleApp::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
   VkPhysicalDeviceMemoryProperties memProperties;
   vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
@@ -912,6 +1013,26 @@ void HelloTriangleApp::setupDebugMessenger() {
     throw std::runtime_error("Failed to setup up debug messenger!");
   }
 }
+
+void HelloTriangleApp::updateUniformBuffer(uint32_t currentImage) {
+  static auto startTime = std::chrono::high_resolution_clock::now();
+
+  auto currentTime = std::chrono::high_resolution_clock::now();
+  float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+
+  UniformBufferObject ubo{};
+  ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+  ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+  ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10.0f);
+  // glm was originally designed for OpenGL, where the Y coordinate of clip coordinates is inverted, so fix here
+  ubo.proj[1][1] *= -1;
+
+  void* data;
+  vkMapMemory(device, uniformBuffersMemory[currentImage], 0, sizeof(ubo), 0, &data);
+  memcpy(data, &ubo, sizeof(ubo));
+  vkUnmapMemory(device, uniformBuffersMemory[currentImage]);
+}
+
 
 void HelloTriangleApp::pickPhysicalDevice() {
   uint32_t deviceCount = 0;
@@ -1185,7 +1306,7 @@ void HelloTriangleApp::drawFrame() {
   // acquire image from swapchain.
   // UINT64_MAX as timeout-parameter disabled timeout.
   uint32_t imageIndex;
-  VkResult result = vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphore[currentFrame], VK_NULL_HANDLE, &imageIndex);
+  VkResult result = vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
 
   // check if new swapchain must be created
   if (result == VK_ERROR_OUT_OF_DATE_KHR) {
@@ -1203,10 +1324,12 @@ void HelloTriangleApp::drawFrame() {
   // mark image as now being in use by this frame
   imagesInFlight[imageIndex] = inFlightFences[currentFrame];
 
+  updateUniformBuffer(imageIndex);
+
   VkSubmitInfo submitInfo{};
   submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-  VkSemaphore waitSemaphores[] = { imageAvailableSemaphore[currentFrame] };
+  VkSemaphore waitSemaphores[] = { imageAvailableSemaphores[currentFrame] };
   VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
   submitInfo.waitSemaphoreCount = 1;
   submitInfo.pWaitSemaphores = waitSemaphores;
@@ -1214,7 +1337,7 @@ void HelloTriangleApp::drawFrame() {
   submitInfo.commandBufferCount = 1;
   submitInfo.pCommandBuffers = &commandBuffers[imageIndex];
 
-  VkSemaphore signalSemaphores[] = { renderFinishedSemaphore[currentFrame] };
+  VkSemaphore signalSemaphores[] = { renderFinishedSemaphores[currentFrame] };
   submitInfo.signalSemaphoreCount = 1;
   submitInfo.pSignalSemaphores = signalSemaphores;
 
@@ -1266,6 +1389,9 @@ void HelloTriangleApp::recreateSwapChain() {
   createRenderPass();       // render pass depends on format of swap chain images (unlikely to change, but still needs to be handled)
   // createGraphicsPipeline(); // viewport & scissor rectangle size is specified during pipeline creation (use dynamic state to avoid)
   createFramebuffers();     // directly depend on swap chain images
+  createUniformBuffers();
+  createDescriptorPool();
+  createDescriptorSets();
   createCommandBuffers();   // directly depend on swap chain images
 }
 
@@ -1273,6 +1399,13 @@ void HelloTriangleApp::cleanupSwapChain() {
   for (auto framebuffer : swapChainFramebuffers) {
     vkDestroyFramebuffer(device, framebuffer, nullptr);
   }
+
+  for (size_t i = 0; i < swapChainImages.size(); i++) {
+    vkDestroyBuffer(device, uniformBuffers[i], nullptr);
+    vkFreeMemory(device, uniformBuffersMemory[i], nullptr);
+  }
+
+  vkDestroyDescriptorPool(device, descriptorPool, nullptr);
 
   vkFreeCommandBuffers(device, graphicsCommandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
 
