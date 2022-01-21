@@ -44,7 +44,7 @@ File(GLOB SOURCE_LIST
 find_package(Vulkan REQUIRED FATAL_ERROR)
 List(APPEND PROJECT_LIBRARIES Vulkan::Vulkan)
 
-if (EXISTS ${PROJECT_SOURCE_DIR}/extern/glm)
+if (EXISTS ${PROJECT_SOURCE_DIR}/extern/glm/CMakeLists.txt)
   Add_Subdirectory(extern/glm)
   List(APPEND PROJECT_LIBRARIES glm::glm)
 else()
@@ -52,7 +52,9 @@ else()
   List(APPEND PROJECT_LIBRARIES glm::glm)
 endif()
 
-if (EXISTS ${PROJECT_SOURCE_DIR}/extern/glfw)
+message("Out: ${PROJECT_SOURCE_DIR}")
+
+if (EXISTS ${PROJECT_SOURCE_DIR}/extern/glfw/CMakeLists.txt)
   option(GLFW_BUILD_EXAMPLES "" OFF)
   option(GLFW_BUILD_TESTS "" OFF)
   option(GLFW_BUILD_DOCS "" OFF)
