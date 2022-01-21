@@ -1,15 +1,17 @@
 #pragma once
 // radians are better suited
 #define GLM_FORCE_RADIANS
-// vulkan uses 0..1 depth, but glm uses opengl standard -1..1 depth
-// for perspective projection matrix
+// vulkan uses 0..1 depth, but glm uses opengl standard -1..1 depth for perspective projection matrix
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#include <glm/gtc/matrix_transform.hpp>
+// hash function for glm
+#define GLM_ENABLE_EXPERIMENTAL
 
 #include <vulkan/vulkan.hpp>
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
 #include <glm/mat4x4.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/hash.hpp>
 
 #include <optional>
 #include <array>
@@ -86,7 +88,24 @@ struct Vertex {
 
     return attributeDescriptions;
   }
+
+  bool operator==(const Vertex& other) const {
+    return pos == other.pos && color == other.color && texCoord == other.texCoord;
+  }
 };
+
+// custom hash function for Vertex
+namespace std {
+  template<> struct hash<Vertex> {
+    size_t operator()(const Vertex& vertex) const {
+      return (
+        (hash<glm::vec3>()(vertex.pos) ^
+        (hash<glm::vec3>()(vertex.color) << 1)) >> 1) ^
+        (hash<glm::vec2>()(vertex.texCoord) << 1
+      );
+    }
+  };
+}
 
 struct UniformBufferObject {
   alignas(16) glm::mat4 model;
@@ -144,6 +163,8 @@ private:
   // sets resolution of swap chain images (in pixels)
   VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
 
+  void loadModel();
+
   VkCommandBuffer beginSingleTimeCommands();
   void endSingleTimeCommands(VkCommandBuffer commandBuffer);
   void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
@@ -195,7 +216,7 @@ private:
   VkCommandPool transferCommandPool;
 
   std::vector<Vertex> vertexData;
-  std::vector<uint16_t> indices;
+  std::vector<uint32_t> indices;
 
   VkImage textureImage;
   VkDeviceMemory textureImageMemory;

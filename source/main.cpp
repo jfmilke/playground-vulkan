@@ -3,6 +3,8 @@
 #include <GLFW/glfw3.h>
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
+#define TINYOBJLOADER_IMPLEMENTATION
+#include <tiny_obj_loader.h>
 
 #include <iostream>
 #include <stdexcept>
@@ -132,6 +134,7 @@ void HelloTriangleApp::initVulkan() {
   createTextureImage();
   createTextureImageView();
   createTextureSampler();
+  loadModel();
   createVertexBuffer();
   createIndexBuffer();
   createUniformBuffers();
@@ -782,7 +785,7 @@ void HelloTriangleApp::createCommandBuffers() {
     vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
 
     // bind index buffer
-    vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+    vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT32);
     
     // if dynamic
     VkViewport viewport{};
@@ -1042,7 +1045,10 @@ void HelloTriangleApp::createDescriptorSets() {
 void HelloTriangleApp::createTextureImage() {
   int texWidth, texHeight, texChannels;
 
-  stbi_uc* pixels = stbi_load("../data/textures/texture.jpg", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+  // regular image
+  // stbi_uc* pixels = stbi_load("../data/textures/texture.jpg", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+  // model texture
+  stbi_uc* pixels = stbi_load("../data/textures/viking_room.png", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
   VkDeviceSize imageSize = texWidth * texHeight * 4;
 
   if (!pixels) {
@@ -1817,6 +1823,50 @@ VkFormat HelloTriangleApp::findDepthFormat() {
 
 bool HelloTriangleApp::hasStencilComponent(VkFormat format) {
   return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
+}
+
+void HelloTriangleApp::loadModel() {
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+
+  vertexData.clear();
+  indices.clear();
+
+  if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, "../data/meshes/viking_room.obj")) {
+    throw std::runtime_error(warn + err);
+  }
+
+  std::unordered_map<Vertex, uint32_t> mapVertexToIndex{};
+
+  int i = 0;
+  for (const auto& shape : shapes) {
+    for (const auto& index : shape.mesh.indices) {
+      Vertex v{};
+
+      v.pos = {
+          attrib.vertices[3 * index.vertex_index + 0]
+        , attrib.vertices[3 * index.vertex_index + 1]
+        , attrib.vertices[3 * index.vertex_index + 2]
+      };
+
+      v.texCoord = {
+          attrib.texcoords[2 * index.texcoord_index + 0]
+          // flip this into "top to bottom" representation
+        , 1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
+      };
+
+      v.color = { 1.0f, 1.0f, 1.0f };
+
+      if (mapVertexToIndex.count(v) == 0) {
+        mapVertexToIndex[v] = static_cast<uint32_t>(vertexData.size());
+        vertexData.push_back(v);
+      }
+
+      indices.push_back(mapVertexToIndex[v]);
+    }
+  }
 }
 
 
