@@ -31,7 +31,7 @@ git clone --recurse-submodules <git-url>
 ```
 
 If you use GitHub Desktop it will possibly automatically download the submodules without question.
-In this case delete all subfolders of `extern` **except for `stb_image`.**
+If this happens and you want to use a pre-installed library delete all subfolders of `extern` **except for `stb_image`.**
 
 Don't forget to compile the shaders via `data/shaders/compile.bat`.
 
