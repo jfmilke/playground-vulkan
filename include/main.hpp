@@ -1,4 +1,10 @@
 #pragma once
+// radians are better suited
+#define GLM_FORCE_RADIANS
+// vulkan uses 0..1 depth, but glm uses opengl standard -1..1 depth
+// for perspective projection matrix
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
+#include <glm/gtc/matrix_transform.hpp>
 
 #include <vulkan/vulkan.hpp>
 #include <glm/vec2.hpp>
@@ -48,7 +54,7 @@ struct SwapChainSupportDetails {
 };
 
 struct Vertex {
-  glm::vec2 pos;
+  glm::vec3 pos;
   glm::vec3 color;
   glm::vec2 texCoord;
 
@@ -65,12 +71,14 @@ struct Vertex {
     std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions{};
     attributeDescriptions[0].binding = 0;
     attributeDescriptions[0].location = 0;
-    attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+    attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
     attributeDescriptions[0].offset = offsetof(Vertex, pos);
+
     attributeDescriptions[1].binding = 0;
     attributeDescriptions[1].location = 1;
     attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
     attributeDescriptions[1].offset = offsetof(Vertex, color);
+
     attributeDescriptions[2].binding = 0;
     attributeDescriptions[2].location = 2;
     attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
@@ -106,8 +114,9 @@ private:
   void createCommandPools();
   void createTextureImage();
   void createTextureImageView();
-  VkImageView createImageView(VkImage image, VkFormat format);
+  void createDepthResources();
   void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory);
+  VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
   void createTextureSampler();
   void createCommandBuffers();
   void createIndexBuffer();
@@ -148,8 +157,11 @@ private:
   int rateDeviceSuitability(VkPhysicalDevice device); // alternative to isDeviceSuitable
   bool checkDeviceExtensionSupport(VkPhysicalDevice device);
   QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
+  VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
+  VkFormat findDepthFormat();
   SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device);
   uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
+  bool hasStencilComponent(VkFormat format);
 
 
 private:
@@ -189,6 +201,10 @@ private:
   VkDeviceMemory textureImageMemory;
   VkImageView textureImageView;
   VkSampler textureSampler;
+
+  VkImage depthImage;
+  VkDeviceMemory depthImageMemory;
+  VkImageView depthImageView;
 
   VkBuffer vertexBuffer;
   VkDeviceMemory vertexBufferMemory;
