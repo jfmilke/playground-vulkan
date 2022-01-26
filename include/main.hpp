@@ -134,9 +134,10 @@ private:
   void createTextureImage();
   void createTextureImageView();
   void createDepthResources();
-  void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory);
-  VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
+  void createImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory);
+  VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels);
   void createTextureSampler();
+  void createColorResources();
   void createCommandBuffers();
   void createIndexBuffer();
   void createVertexBuffer();
@@ -145,9 +146,10 @@ private:
   void createDescriptorSets();
   void createBuffer(VkDeviceSize deviceSize, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
   void createSyncObjects();
-  void createVertexData();
-  void recreateSwapChain();
+  void generateVertexData();
+  void generateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels);
   void setupDebugMessenger();
+  void recreateSwapChain();
   void updateUniformBuffer(uint32_t currentImage);
   void mainLoop();
   void cleanupSwapChain();
@@ -167,7 +169,7 @@ private:
 
   VkCommandBuffer beginSingleTimeCommands();
   void endSingleTimeCommands(VkCommandBuffer commandBuffer);
-  void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
+  void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels);
   void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
   void copyBufferToImage(VkBuffer srcBuffer, VkImage dstImage, uint32_t width, uint32_t height);
 
@@ -180,8 +182,9 @@ private:
   QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
   VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
   VkFormat findDepthFormat();
-  SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device);
   uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
+  VkSampleCountFlagBits findMaxUsableSampleCount();
+  SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device);
   bool hasStencilComponent(VkFormat format);
 
 
@@ -218,14 +221,21 @@ private:
   std::vector<Vertex> vertexData;
   std::vector<uint32_t> indices;
 
+  uint32_t mipLevels;
   VkImage textureImage;
   VkDeviceMemory textureImageMemory;
   VkImageView textureImageView;
   VkSampler textureSampler;
 
+  VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;
+
   VkImage depthImage;
   VkDeviceMemory depthImageMemory;
   VkImageView depthImageView;
+
+  VkImage colorImage;
+  VkDeviceMemory colorImageMemory;
+  VkImageView colorImageView;
 
   VkBuffer vertexBuffer;
   VkDeviceMemory vertexBufferMemory;
