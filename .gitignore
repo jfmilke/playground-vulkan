@@ -34,6 +34,9 @@
 # Shaders
 *.spv
 
+# Mesh
+!data/meshes/viking_room.obj
+
 # Folders
 bin
 build
